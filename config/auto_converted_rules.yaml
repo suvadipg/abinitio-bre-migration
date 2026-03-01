@@ -1,0 +1,233 @@
+# ============================================================
+# AUTO-GENERATED from Ab Initio BRE XML
+# Source: /home/claude/abinitio-bre-migration/config/abinitio_rules_sample.xml
+# ============================================================
+
+rulesets:
+- name: transaction_risk_classification
+  description: Classify transactions by risk level
+  priority: 100
+  active: true
+  stop_on_first_match: true
+  rules:
+  - name: suspicious_country_override
+    priority: 5
+    description: ''
+    actions:
+    - field: risk_level
+      value: CRITICAL
+    - field: review_required
+      value: true
+    - field: risk_score
+      value: 99
+    - field: alert_compliance
+      value: true
+    condition:
+      type: lookup
+      field: country_code
+      lookup_name: suspicious_countries
+  - name: high_value_transaction
+    priority: 10
+    description: ''
+    actions:
+    - field: risk_level
+      value: HIGH
+    - field: review_required
+      value: true
+    - field: risk_score
+      value: 85
+    condition:
+      type: expression
+      expression: record['transaction_amount'] > 10000.00
+  - name: international_medium_value
+    priority: 20
+    description: ''
+    actions:
+    - field: risk_level
+      value: HIGH
+    - field: review_required
+      value: true
+    - field: risk_score
+      value: 75
+    condition:
+      type: expression
+      expression: record['transaction_amount'] > 5000.00 and record['transaction_amount'] <= 10000.00 and record['is_international']
+        == "Y"
+  - name: medium_value_domestic
+    priority: 30
+    description: ''
+    actions:
+    - field: risk_level
+      value: MEDIUM
+    - field: review_required
+      value: false
+    - field: risk_score
+      value: 50
+    condition:
+      type: expression
+      expression: record['transaction_amount'] > 5000.00 and record['transaction_amount'] <= 10000.00 and record['is_international']
+        == "N"
+  - name: low_value_transaction
+    priority: 40
+    description: ''
+    actions:
+    - field: risk_level
+      value: LOW
+    - field: review_required
+      value: false
+    - field: risk_score
+      value: 10
+    condition:
+      type: expression
+      expression: record['transaction_amount'] <= 5000.00
+- name: fee_calculation
+  description: Calculate transaction processing fees
+  priority: 200
+  active: true
+  stop_on_first_match: true
+  rules:
+  - name: international_surcharge
+    priority: 5
+    description: ''
+    actions:
+    - field: intl_surcharge
+      type: computed
+      expression: record['transaction_amount'] * 0.01
+    - field: intl_surcharge_applied
+      value: true
+    condition:
+      type: expression
+      expression: record['is_international'] == "Y"
+  - name: premium_customer_fee
+    priority: 10
+    description: ''
+    actions:
+    - field: fee_rate
+      value: 0.005
+    - field: fee_amount
+      type: computed
+      expression: record['transaction_amount'] * 0.005
+    - field: fee_type
+      value: DISCOUNTED
+    condition:
+      type: expression
+      expression: record['customer_segment'] == "PREMIUM"
+  - name: standard_customer_fee
+    priority: 20
+    description: ''
+    actions:
+    - field: fee_rate
+      value: 0.015
+    - field: fee_amount
+      type: computed
+      expression: record['transaction_amount'] * 0.015
+    - field: fee_type
+      value: STANDARD
+    condition:
+      type: expression
+      expression: record['customer_segment'] == "STANDARD"
+  - name: new_customer_fee
+    priority: 30
+    description: ''
+    actions:
+    - field: fee_rate
+      value: 0.02
+    - field: fee_amount
+      type: computed
+      expression: record['transaction_amount'] * 0.020
+    - field: fee_type
+      value: NEW_CUSTOMER
+    condition:
+      type: expression
+      expression: record['customer_segment'] == "NEW"
+decision_tables:
+- name: tier_lookup
+  description: Assign customer loyalty tier via decision table
+  input_columns:
+  - name: account_age_years
+    type: range
+  - name: annual_volume
+    type: range
+  output_columns:
+  - loyalty_tier
+  - discount_pct
+  - priority_processing
+  rows:
+  - inputs:
+      account_age_years:
+        min: 0
+        max: 1
+      annual_volume:
+        min: 0
+        max: 50000
+    outputs:
+      loyalty_tier: BRONZE
+      discount_pct: 0
+      priority_processing: false
+  - inputs:
+      account_age_years:
+        min: 0
+        max: 1
+      annual_volume:
+        min: 50000
+        max: 999999999
+    outputs:
+      loyalty_tier: SILVER
+      discount_pct: 5
+      priority_processing: false
+  - inputs:
+      account_age_years:
+        min: 1
+        max: 5
+      annual_volume:
+        min: 0
+        max: 100000
+    outputs:
+      loyalty_tier: SILVER
+      discount_pct: 5
+      priority_processing: false
+  - inputs:
+      account_age_years:
+        min: 1
+        max: 5
+      annual_volume:
+        min: 100000
+        max: 999999999
+    outputs:
+      loyalty_tier: GOLD
+      discount_pct: 10
+      priority_processing: true
+  - inputs:
+      account_age_years:
+        min: 5
+        max: 999
+      annual_volume:
+        min: 0
+        max: 100000
+    outputs:
+      loyalty_tier: GOLD
+      discount_pct: 10
+      priority_processing: true
+  - inputs:
+      account_age_years:
+        min: 5
+        max: 999
+      annual_volume:
+        min: 100000
+        max: 999999999
+    outputs:
+      loyalty_tier: PLATINUM
+      discount_pct: 20
+      priority_processing: true
+lookups:
+  suspicious_countries:
+    type: set
+    values:
+    - NK
+    - IR
+    - SY
+    - CU
+  currency_rates:
+    type: key_value
+    source: file
+    path: /data/reference/currency_rates.dat

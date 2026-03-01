@@ -1,0 +1,267 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    SAMPLE Ab Initio BRE Ruleset Export
+    This represents a typical Ab Initio Business Rules Environment configuration
+    for a financial transaction processing pipeline.
+    
+    Ab Initio BRE stores rules as XML/RDF with:
+    - Rulesets (collections of related rules)
+    - Individual rules with conditions and actions
+    - Decision tables (matrix-style lookups)
+    - DML expressions (Ab Initio's transformation language)
+    - Lookup references (external data joins)
+-->
+<bre_export version="3.2" xmlns:bre="http://www.abinitio.com/bre">
+
+    <!-- ============================================================ -->
+    <!-- RULESET 1: Transaction Risk Classification                    -->
+    <!-- Classifies each transaction into a risk tier                  -->
+    <!-- ============================================================ -->
+    <ruleset name="transaction_risk_classification" 
+             description="Classify transactions by risk level"
+             priority="100"
+             active="true">
+        
+        <!-- Rule 1: High-value transactions are HIGH risk -->
+        <rule name="high_value_transaction" priority="10">
+            <condition>
+                <expression language="dml">
+                    transaction_amount > 10000.00
+                </expression>
+            </condition>
+            <action>
+                <set_field name="risk_level" value="HIGH"/>
+                <set_field name="review_required" value="true"/>
+                <set_field name="risk_score" value="85"/>
+            </action>
+        </rule>
+
+        <!-- Rule 2: International transactions with medium amount -->
+        <rule name="international_medium_value" priority="20">
+            <condition>
+                <expression language="dml">
+                    transaction_amount > 5000.00 
+                    and transaction_amount &lt;= 10000.00 
+                    and is_international == "Y"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="risk_level" value="HIGH"/>
+                <set_field name="review_required" value="true"/>
+                <set_field name="risk_score" value="75"/>
+            </action>
+        </rule>
+
+        <!-- Rule 3: Medium value domestic -->
+        <rule name="medium_value_domestic" priority="30">
+            <condition>
+                <expression language="dml">
+                    transaction_amount > 5000.00 
+                    and transaction_amount &lt;= 10000.00 
+                    and is_international == "N"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="risk_level" value="MEDIUM"/>
+                <set_field name="review_required" value="false"/>
+                <set_field name="risk_score" value="50"/>
+            </action>
+        </rule>
+
+        <!-- Rule 4: Low value transactions -->
+        <rule name="low_value_transaction" priority="40">
+            <condition>
+                <expression language="dml">
+                    transaction_amount &lt;= 5000.00
+                </expression>
+            </condition>
+            <action>
+                <set_field name="risk_level" value="LOW"/>
+                <set_field name="review_required" value="false"/>
+                <set_field name="risk_score" value="10"/>
+            </action>
+        </rule>
+
+        <!-- Rule 5: Suspicious country override -->
+        <rule name="suspicious_country_override" priority="5">
+            <condition>
+                <expression language="dml">
+                    country_code in_lookup "suspicious_countries"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="risk_level" value="CRITICAL"/>
+                <set_field name="review_required" value="true"/>
+                <set_field name="risk_score" value="99"/>
+                <set_field name="alert_compliance" value="true"/>
+            </action>
+        </rule>
+    </ruleset>
+
+    <!-- ============================================================ -->
+    <!-- RULESET 2: Fee Calculation                                    -->
+    <!-- Calculates processing fees based on transaction attributes     -->
+    <!-- ============================================================ -->
+    <ruleset name="fee_calculation" 
+             description="Calculate transaction processing fees"
+             priority="200"
+             active="true">
+
+        <!-- Rule: Premium customer discount -->
+        <rule name="premium_customer_fee" priority="10">
+            <condition>
+                <expression language="dml">
+                    customer_segment == "PREMIUM"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="fee_rate" value="0.005"/>
+                <set_field name="fee_amount">
+                    <expression language="dml">
+                        transaction_amount * 0.005
+                    </expression>
+                </set_field>
+                <set_field name="fee_type" value="DISCOUNTED"/>
+            </action>
+        </rule>
+
+        <!-- Rule: Standard customer fee -->
+        <rule name="standard_customer_fee" priority="20">
+            <condition>
+                <expression language="dml">
+                    customer_segment == "STANDARD"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="fee_rate" value="0.015"/>
+                <set_field name="fee_amount">
+                    <expression language="dml">
+                        transaction_amount * 0.015
+                    </expression>
+                </set_field>
+                <set_field name="fee_type" value="STANDARD"/>
+            </action>
+        </rule>
+
+        <!-- Rule: New customer fee -->
+        <rule name="new_customer_fee" priority="30">
+            <condition>
+                <expression language="dml">
+                    customer_segment == "NEW"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="fee_rate" value="0.020"/>
+                <set_field name="fee_amount">
+                    <expression language="dml">
+                        transaction_amount * 0.020
+                    </expression>
+                </set_field>
+                <set_field name="fee_type" value="NEW_CUSTOMER"/>
+            </action>
+        </rule>
+
+        <!-- Rule: International surcharge -->
+        <rule name="international_surcharge" priority="5">
+            <condition>
+                <expression language="dml">
+                    is_international == "Y"
+                </expression>
+            </condition>
+            <action>
+                <set_field name="intl_surcharge">
+                    <expression language="dml">
+                        transaction_amount * 0.01
+                    </expression>
+                </set_field>
+                <set_field name="intl_surcharge_applied" value="true"/>
+            </action>
+        </rule>
+    </ruleset>
+
+    <!-- ============================================================ -->
+    <!-- RULESET 3: Customer Tier Assignment (Decision Table)          -->
+    <!-- Maps customer attributes to loyalty tier using a lookup       -->
+    <!-- ============================================================ -->
+    <ruleset name="customer_tier_assignment" 
+             description="Assign customer loyalty tier via decision table"
+             priority="50"
+             active="true"
+             type="decision_table">
+
+        <decision_table name="tier_lookup">
+            <input_columns>
+                <column name="account_age_years" type="range"/>
+                <column name="annual_volume" type="range"/>
+            </input_columns>
+            <output_columns>
+                <column name="loyalty_tier"/>
+                <column name="discount_pct"/>
+                <column name="priority_processing"/>
+            </output_columns>
+            <rows>
+                <row>
+                    <input>
+                        <range field="account_age_years" min="0" max="1"/>
+                        <range field="annual_volume" min="0" max="50000"/>
+                    </input>
+                    <output loyalty_tier="BRONZE" discount_pct="0" priority_processing="false"/>
+                </row>
+                <row>
+                    <input>
+                        <range field="account_age_years" min="0" max="1"/>
+                        <range field="annual_volume" min="50000" max="999999999"/>
+                    </input>
+                    <output loyalty_tier="SILVER" discount_pct="5" priority_processing="false"/>
+                </row>
+                <row>
+                    <input>
+                        <range field="account_age_years" min="1" max="5"/>
+                        <range field="annual_volume" min="0" max="100000"/>
+                    </input>
+                    <output loyalty_tier="SILVER" discount_pct="5" priority_processing="false"/>
+                </row>
+                <row>
+                    <input>
+                        <range field="account_age_years" min="1" max="5"/>
+                        <range field="annual_volume" min="100000" max="999999999"/>
+                    </input>
+                    <output loyalty_tier="GOLD" discount_pct="10" priority_processing="true"/>
+                </row>
+                <row>
+                    <input>
+                        <range field="account_age_years" min="5" max="999"/>
+                        <range field="annual_volume" min="0" max="100000"/>
+                    </input>
+                    <output loyalty_tier="GOLD" discount_pct="10" priority_processing="true"/>
+                </row>
+                <row>
+                    <input>
+                        <range field="account_age_years" min="5" max="999"/>
+                        <range field="annual_volume" min="100000" max="999999999"/>
+                    </input>
+                    <output loyalty_tier="PLATINUM" discount_pct="20" priority_processing="true"/>
+                </row>
+            </rows>
+        </decision_table>
+    </ruleset>
+
+    <!-- ============================================================ -->
+    <!-- LOOKUP DEFINITIONS                                            -->
+    <!-- External reference data used by rules                         -->
+    <!-- ============================================================ -->
+    <lookups>
+        <lookup name="suspicious_countries" type="set">
+            <values>
+                <value>NK</value>
+                <value>IR</value>
+                <value>SY</value>
+                <value>CU</value>
+            </values>
+        </lookup>
+        <lookup name="currency_rates" type="key_value" source="file">
+            <path>/data/reference/currency_rates.dat</path>
+        </lookup>
+    </lookups>
+
+</bre_export>
